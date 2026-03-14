@@ -9,6 +9,9 @@ namespace GlyphToon.Benchmark;
 
 internal static class JsonInputScenarios
 {
+    private const long MaxInputFileBytes = 4 * 1024 * 1024;
+    private const int MaxJsonDepth = 64;
+
     public static IReadOnlyList<BenchmarkScenario> Create(IEnumerable<string> inputPaths)
     {
         ArgumentNullException.ThrowIfNull(inputPaths);
@@ -18,26 +21,45 @@ internal static class JsonInputScenarios
         foreach (string inputPath in inputPaths)
         {
             string fullPath = Path.GetFullPath(inputPath);
+            FileInfo inputFile = new(fullPath);
 
-            if (!File.Exists(fullPath))
+            if (!inputFile.Exists)
             {
-                throw new FileNotFoundException($"Input JSON file was not found: {fullPath}", fullPath);
+                throw new FileNotFoundException(
+                    $"Input JSON file was not found: {Path.GetFileName(fullPath)}",
+                    Path.GetFileName(fullPath));
             }
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(fullPath));
+            if (inputFile.Length > MaxInputFileBytes)
+            {
+                throw new IOException(
+                    $"Input JSON file exceeds the {FormatFileSize(MaxInputFileBytes)} limit: {inputFile.Name}");
+            }
+
+            using FileStream stream = inputFile.OpenRead();
+            using JsonDocument document = JsonDocument.Parse(stream, new JsonDocumentOptions
+            {
+                AllowTrailingCommas = false,
+                CommentHandling = JsonCommentHandling.Disallow,
+                MaxDepth = MaxJsonDepth,
+            });
+
             object? payload = ConvertElement(document.RootElement);
             int itemCount = CountRootItems(document.RootElement);
             string fileName = Path.GetFileNameWithoutExtension(fullPath);
 
             scenarios.Add(new BenchmarkScenario(
                 fileName,
-                $"Loaded from {fullPath}",
+                $"Loaded from input file '{inputFile.Name}'",
                 itemCount,
                 () => payload));
         }
 
         return scenarios;
     }
+
+    private static string FormatFileSize(long byteCount)
+        => $"{byteCount / (1024d * 1024d):0.#} MiB";
 
     private static int CountRootItems(JsonElement element) => element.ValueKind switch
     {

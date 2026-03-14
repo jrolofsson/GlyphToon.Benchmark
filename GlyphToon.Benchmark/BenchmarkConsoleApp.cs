@@ -13,6 +13,8 @@ namespace GlyphToon.Benchmark;
 
 internal static class BenchmarkConsoleApp
 {
+    private const double ZeroTolerance = 0.0000001d;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -87,7 +89,7 @@ internal static class BenchmarkConsoleApp
             {
                 scenarios = JsonInputScenarios.Create(options.InputPaths).ToArray();
             }
-            catch (Exception exception) when (exception is FileNotFoundException or JsonException or NotSupportedException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
             {
                 standardError.WriteLine(exception.Message);
                 return 1;
@@ -187,6 +189,10 @@ internal static class BenchmarkConsoleApp
         {
             output.WriteLine($"Input files: {options.InputPaths.Count}");
         }
+        if (options.ShowPayloads)
+        {
+            output.WriteLine("Payload output: enabled. Do not use --show-payloads with sensitive input files.");
+        }
         output.WriteLine("Token counts: exact via Microsoft.ML.Tokenizers + O200kBase data");
         output.WriteLine("Cost presets: OpenAI API input pricing snapshot from 2026-03-14");
         output.WriteLine();
@@ -258,7 +264,7 @@ internal static class BenchmarkConsoleApp
 
     private static string FormatPercentSavings(double baseline, double candidate)
     {
-        if (baseline == 0d)
+        if (Math.Abs(baseline) < ZeroTolerance)
         {
             return "n/a";
         }
@@ -273,7 +279,7 @@ internal static class BenchmarkConsoleApp
 
     private static string FormatRelativeSpeed(double baseline, double candidate)
     {
-        if (baseline == 0d)
+        if (Math.Abs(baseline) < ZeroTolerance)
         {
             return "n/a";
         }
@@ -295,8 +301,8 @@ internal static class BenchmarkConsoleApp
         output.WriteLine("  --iterations <number>      Number of repeated serializations per format. Default: 500");
         output.WriteLine("  --scenario <filter>        Runs only scenarios whose names contain the filter text.");
         output.WriteLine("  --tokenizer-model <name>   Tiktoken model name for CountTokens. Default: gpt-5");
-        output.WriteLine("  --input <file.json>        Benchmarks one JSON file. Repeat to benchmark multiple files.");
-        output.WriteLine("  --show-payloads            Prints the generated JSON and TOON payloads.");
+        output.WriteLine("  --input <file.json>        Benchmarks one JSON file up to 4 MiB. Repeat to benchmark multiple files.");
+        output.WriteLine("  --show-payloads            Prints full JSON and TOON payloads. Avoid with sensitive input.");
         output.WriteLine("  --help                     Shows this help text.");
     }
 

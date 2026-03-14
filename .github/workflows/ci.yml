@@ -16,8 +16,6 @@ permissions:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  GLYPHTOON_GITHUB_USERNAME: ${{ secrets.GLYPHTOON_GITHUB_USERNAME != '' && secrets.GLYPHTOON_GITHUB_USERNAME || github.actor }}
-  GLYPHTOON_GITHUB_PAT: ${{ secrets.GLYPHTOON_GITHUB_PAT != '' && secrets.GLYPHTOON_GITHUB_PAT || github.token }}
 
 jobs:
   build-test-benchmark:
@@ -41,6 +39,9 @@ jobs:
             GlyphToon.Benchmark.Tests/GlyphToon.Benchmark.Tests.csproj
 
       - name: Restore
+        env:
+          GLYPHTOON_GITHUB_USERNAME: ${{ secrets.GLYPHTOON_GITHUB_USERNAME != '' && secrets.GLYPHTOON_GITHUB_USERNAME || github.actor }}
+          GLYPHTOON_GITHUB_PAT: ${{ secrets.GLYPHTOON_GITHUB_PAT != '' && secrets.GLYPHTOON_GITHUB_PAT || github.token }}
         run: dotnet restore GlyphToon.Benchmark.slnx --nologo
 
       - name: Build

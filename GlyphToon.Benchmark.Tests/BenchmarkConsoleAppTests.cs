@@ -3,6 +3,8 @@ namespace GlyphToon.Benchmark.Tests;
 
 public sealed class BenchmarkConsoleAppTests
 {
+    private const int MaxInputFileBytes = 4 * 1024 * 1024;
+
     [Fact]
     public void RunHelpPrintsUsageAndReturnsZero()
     {
@@ -28,6 +30,7 @@ public sealed class BenchmarkConsoleAppTests
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Input JSON file was not found", stderr.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(missingPath, stderr.ToString(), StringComparison.Ordinal);
         Assert.Equal(string.Empty, stdout.ToString());
     }
 
@@ -44,8 +47,53 @@ public sealed class BenchmarkConsoleAppTests
         Assert.Equal(0, exitCode);
         Assert.Equal(string.Empty, stderr.ToString());
         Assert.Contains("Scenario: sample-input", output, StringComparison.Ordinal);
+        Assert.DoesNotContain(samplePath, output, StringComparison.Ordinal);
         Assert.Contains("Savings vs JSON:", output, StringComparison.Ordinal);
         Assert.Contains("GPT-5.4 input:", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RunRejectsOversizedInputFile()
+    {
+        StringWriter stdout = new();
+        StringWriter stderr = new();
+        string tempFile = Path.Combine(Path.GetTempPath(), $"glyphtoon-large-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            using (FileStream stream = new(tempFile, FileMode.CreateNew, FileAccess.Write))
+            {
+                stream.SetLength(MaxInputFileBytes + 1L);
+            }
+
+            int exitCode = BenchmarkConsoleApp.Run(["--input", tempFile], stdout, stderr);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains("exceeds the 4 MiB limit", stderr.ToString(), StringComparison.Ordinal);
+            Assert.DoesNotContain(tempFile, stderr.ToString(), StringComparison.Ordinal);
+            Assert.Equal(string.Empty, stdout.ToString());
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void RunShowPayloadsPrintsSensitiveInputWarning()
+    {
+        StringWriter stdout = new();
+        StringWriter stderr = new();
+        string samplePath = GetRepoRelativePath("tmp", "sample-input.json");
+
+        int exitCode = BenchmarkConsoleApp.Run(["--iterations", "1", "--input", samplePath, "--show-payloads"], stdout, stderr);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(string.Empty, stderr.ToString());
+        Assert.Contains("Do not use --show-payloads with sensitive input files.", stdout.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -58,6 +106,7 @@ public sealed class BenchmarkConsoleAppTests
         BenchmarkScenario scenario = Assert.Single(scenarios);
         Assert.Equal("sample-input", scenario.Name);
         Assert.Equal(3, scenario.ItemCount);
+        Assert.Equal("Loaded from input file 'sample-input.json'", scenario.Description);
         Assert.IsAssignableFrom<Dictionary<string, object?>>(scenario.PayloadFactory());
     }
 

@@ -141,6 +141,8 @@ Benchmarks one JSON file from disk. Repeat the switch to benchmark multiple file
 - Each file becomes its own scenario.
 - The scenario name is the file name without `.json`.
 - The app supports JSON objects, arrays, primitives, booleans, numbers, and `null`.
+- Individual input files are limited to 4 MiB and parsed with a maximum JSON depth of 64.
+- CLI messages intentionally avoid printing full filesystem paths for input files.
 
 Examples:
 
@@ -155,6 +157,7 @@ Prints the generated minified JSON payload and the TOON payload after each bench
 
 - Useful for inspecting exactly what was measured.
 - Best for one scenario or a small number of input files, since output can get large.
+- Avoid this option for confidential or production data because it prints full payload contents.
 
 Example:
 
