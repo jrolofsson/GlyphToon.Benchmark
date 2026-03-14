@@ -2,6 +2,8 @@
 
 Console benchmark for comparing prompt size and input-token cost between minified JSON and TOON output produced by the published `GlyphTone.Encoder` package.
 
+The benchmark targets `GlyphTone.Encoder` `1.0.2` and follows the current guidance in the encoder repository's `README.md` and `SECURITY.md`.
+
 Package source:
 
 - GitHub Packages: https://github.com/jrolofsson/GlyphToon/pkgs/nuget/GlyphTone.Encoder
@@ -198,6 +200,8 @@ dotnet run --project GlyphToon.Benchmark/GlyphToon.Benchmark.csproj -- --scenari
 
 - The JSON baseline is minified camelCase JSON to keep the comparison fair.
 - External input files are parsed into plain CLR dictionaries, lists, and primitives before benchmarking so both serializers work from the same normalized object graph.
-- The TOON output uses camelCase property names and keeps tabular arrays enabled.
+- Built-in synthetic scenarios use a reflection-enabled encoder profile because those payloads are static POCOs owned by the benchmark project.
+- External JSON files use a hardened encoder profile derived from `EncoderOptions.CreateHardenedDefaults()`, with reflection disabled and benchmark-tuned limits for output length, string length, collection size, and object width.
+- The TOON output uses camelCase property names and keeps tabular arrays enabled in both profiles.
 - The default cost presets only apply to input tokens, which is the portion affected by JSON vs TOON prompt formatting.
 - Built-in price presets are based on the OpenAI API pricing page snapshot from 2026-03-14 and can be adjusted in code if your target model pricing differs.

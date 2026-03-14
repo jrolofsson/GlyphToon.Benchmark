@@ -14,6 +14,8 @@ namespace GlyphToon.Benchmark;
 internal static class BenchmarkConsoleApp
 {
     private const double ZeroTolerance = 0.0000001d;
+    private const int MaxBenchmarkOutputLength = 4_000_000;
+    private const int MaxBenchmarkStringLength = 1_000_000;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -21,12 +23,9 @@ internal static class BenchmarkConsoleApp
         WriteIndented = false,
     };
 
-    private static readonly EncoderOptions ToonOptions = new()
-    {
-        PreferTabularArrays = true,
-        PropertyNamingPolicy = static propertyName => JsonNamingPolicy.CamelCase.ConvertName(propertyName),
-        SortProperties = false,
-    };
+    private static readonly EncoderOptions BuiltInToonOptions = CreateBuiltInToonOptions();
+
+    private static readonly EncoderOptions ExternalInputToonOptions = CreateExternalInputToonOptions();
 
     private static readonly IReadOnlyList<CostProfile> DefaultCostProfiles =
     [
@@ -82,12 +81,14 @@ internal static class BenchmarkConsoleApp
 
         BenchmarkScenario[] scenarios = BenchmarkScenarios.Create()
             .ToArray();
+        EncoderOptions toonOptions = BuiltInToonOptions;
 
         if (options.InputPaths.Count > 0)
         {
             try
             {
                 scenarios = JsonInputScenarios.Create(options.InputPaths).ToArray();
+                toonOptions = ExternalInputToonOptions;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
             {
@@ -112,7 +113,18 @@ internal static class BenchmarkConsoleApp
 
         foreach (BenchmarkScenario scenario in scenarios)
         {
-            ScenarioResult result = RunScenario(scenario, tokenizer, options.Iterations);
+            ScenarioResult result;
+
+            try
+            {
+                result = RunScenario(scenario, tokenizer, options.Iterations, toonOptions);
+            }
+            catch (ToonEncodingException exception)
+            {
+                standardError.WriteLine($"Unable to encode scenario '{scenario.Name}': {exception.Message}");
+                return 1;
+            }
+
             WriteScenario(result, options.ShowPayloads, standardOutput);
         }
 
@@ -122,7 +134,8 @@ internal static class BenchmarkConsoleApp
     private static ScenarioResult RunScenario(
         BenchmarkScenario scenario,
         Tokenizer tokenizer,
-        int iterations)
+        int iterations,
+        EncoderOptions toonOptions)
     {
         object? payload = scenario.PayloadFactory();
         SerializationResult json = MeasureSerialization(
@@ -130,7 +143,7 @@ internal static class BenchmarkConsoleApp
             payload,
             iterations);
         SerializationResult toon = MeasureSerialization(
-            static value => GlyphTone.Encoder.Serialize(value, ToonOptions),
+            value => GlyphTone.Encoder.Serialize(value, toonOptions),
             payload,
             iterations);
 
@@ -185,6 +198,10 @@ internal static class BenchmarkConsoleApp
         output.WriteLine($"Tokenizer model: {options.TokenizerModel}");
         output.WriteLine($"Iterations per serializer: {options.Iterations:N0}");
         output.WriteLine($"Scenarios: {scenarioCount}");
+        output.WriteLine(
+            options.InputPaths.Count > 0
+                ? "TOON profile: hardened external-input profile (reflection disabled, bounded output)"
+                : "TOON profile: built-in benchmark profile (reflection enabled for synthetic POCO scenarios)");
         if (options.InputPaths.Count > 0)
         {
             output.WriteLine($"Input files: {options.InputPaths.Count}");
@@ -261,6 +278,30 @@ internal static class BenchmarkConsoleApp
 
     private static decimal CalculateInputCost(int tokens, decimal inputCostPerMillionTokens)
         => tokens / 1_000_000m * inputCostPerMillionTokens;
+
+    private static EncoderOptions CreateBuiltInToonOptions() => new()
+    {
+        AllowReflectionObjectSerialization = true,
+        PreferTabularArrays = true,
+        PropertyNamingPolicy = static propertyName => JsonNamingPolicy.CamelCase.ConvertName(propertyName),
+        SortDictionaryKeys = false,
+        SortProperties = false,
+        StrictMode = true,
+    };
+
+    private static EncoderOptions CreateExternalInputToonOptions()
+    {
+        EncoderOptions options = EncoderOptions.CreateHardenedDefaults();
+        options.MaxCollectionItemCount = 100_000;
+        options.MaxObjectMemberCount = 4_096;
+        options.MaxOutputLength = MaxBenchmarkOutputLength;
+        options.MaxStringLength = MaxBenchmarkStringLength;
+        options.PreferTabularArrays = true;
+        options.PropertyNamingPolicy = static propertyName => JsonNamingPolicy.CamelCase.ConvertName(propertyName);
+        options.SortDictionaryKeys = false;
+        options.SortProperties = false;
+        return options;
+    }
 
     private static string FormatPercentSavings(double baseline, double candidate)
     {

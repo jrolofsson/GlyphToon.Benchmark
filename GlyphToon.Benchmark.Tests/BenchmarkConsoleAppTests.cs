@@ -1,9 +1,12 @@
+using System.Text.Json;
+
 // This file validates the benchmark CLI contract without shelling out to a child process.
 namespace GlyphToon.Benchmark.Tests;
 
 public sealed class BenchmarkConsoleAppTests
 {
     private const int MaxInputFileBytes = 4 * 1024 * 1024;
+    private const int MaxBenchmarkStringLength = 1_000_000;
 
     [Fact]
     public void RunHelpPrintsUsageAndReturnsZero()
@@ -46,10 +49,26 @@ public sealed class BenchmarkConsoleAppTests
         string output = stdout.ToString();
         Assert.Equal(0, exitCode);
         Assert.Equal(string.Empty, stderr.ToString());
+        Assert.Contains("TOON profile: hardened external-input profile", output, StringComparison.Ordinal);
         Assert.Contains("Scenario: sample-input", output, StringComparison.Ordinal);
         Assert.DoesNotContain(samplePath, output, StringComparison.Ordinal);
         Assert.Contains("Savings vs JSON:", output, StringComparison.Ordinal);
         Assert.Contains("GPT-5.4 input:", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RunBuiltInScenarioPrintsScenarioSummary()
+    {
+        StringWriter stdout = new();
+        StringWriter stderr = new();
+
+        int exitCode = BenchmarkConsoleApp.Run(["--iterations", "1", "--scenario", "glyph"], stdout, stderr);
+
+        string output = stdout.ToString();
+        Assert.Equal(0, exitCode);
+        Assert.Equal(string.Empty, stderr.ToString());
+        Assert.Contains("TOON profile: built-in benchmark profile", output, StringComparison.Ordinal);
+        Assert.Contains("Scenario: GlyphCatalog", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,6 +116,32 @@ public sealed class BenchmarkConsoleAppTests
     }
 
     [Fact]
+    public void RunInputThatExceedsEncoderStringLimitPrintsErrorAndReturnsOne()
+    {
+        StringWriter stdout = new();
+        StringWriter stderr = new();
+        string tempFile = Path.Combine(Path.GetTempPath(), $"glyphtoon-string-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(tempFile, CreateOversizedStringPayload());
+
+            int exitCode = BenchmarkConsoleApp.Run(["--iterations", "1", "--input", tempFile], stdout, stderr);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains("Unable to encode scenario", stderr.ToString(), StringComparison.Ordinal);
+            Assert.Contains(Path.GetFileNameWithoutExtension(tempFile), stderr.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
     public void JsonInputScenariosCreateConvertsSampleFileIntoScenario()
     {
         string samplePath = GetRepoRelativePath("tmp", "sample-input.json");
@@ -108,6 +153,16 @@ public sealed class BenchmarkConsoleAppTests
         Assert.Equal(3, scenario.ItemCount);
         Assert.Equal("Loaded from input file 'sample-input.json'", scenario.Description);
         Assert.IsAssignableFrom<Dictionary<string, object?>>(scenario.PayloadFactory());
+    }
+
+    private static string CreateOversizedStringPayload()
+    {
+        Dictionary<string, string> payload = new()
+        {
+            ["text"] = new string('a', MaxBenchmarkStringLength + 1),
+        };
+
+        return JsonSerializer.Serialize(payload);
     }
 
     private static string GetRepoRelativePath(params string[] segments)

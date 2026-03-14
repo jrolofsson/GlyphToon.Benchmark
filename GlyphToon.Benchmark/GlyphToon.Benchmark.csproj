@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="GlyphTone.Encoder" Version="1.0.0" />
+    <PackageReference Include="GlyphTone.Encoder" Version="1.0.2" />
     <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.5" />
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
