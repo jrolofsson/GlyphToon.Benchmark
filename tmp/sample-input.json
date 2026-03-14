@@ -1,0 +1,20 @@
+{
+  "batchId": "demo-001",
+  "requestedBy": "local-test",
+  "jobs": [
+    {
+      "id": 1,
+      "scene": "forest shrine",
+      "palette": "copper-cyan",
+      "seed": 10101,
+      "enabled": true
+    },
+    {
+      "id": 2,
+      "scene": "subway platform",
+      "palette": "indigo-sand",
+      "seed": 10138,
+      "enabled": false
+    }
+  ]
+}

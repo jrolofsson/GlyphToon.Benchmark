@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="GlyphToon.Benchmark/GlyphToon.Benchmark.csproj" />
+  <Project Path="GlyphToon.Benchmark.Tests/GlyphToon.Benchmark.Tests.csproj" />
+</Solution>
